@@ -15,7 +15,6 @@ class Myrec(threading.Thread):
         threading.Thread.__init__(self)
         self.sock = sock
     def run(self):
-        global StopChat
         global EOF
         while True:
             data = self.sock.recv(BUFSIZE).decode('UTF-8')
@@ -31,16 +30,20 @@ class Mysend(threading.Thread):
         threading.Thread.__init__(self)
         self.sock = sock
     def run(self):
-        while True:
-            msg = input()
-            self.sock.sendall(msg.encode('UTF-8'))
+        try:
+            while True:
+                msg = input()
+                self.sock.sendall(msg.encode('UTF-8'))
+        except KeyboardInterrupt:
+            self.sock.sendall('oo'.encode('UTF-8'))
         
 def server(host, port):
     # 將port綁定，並且連接registrar提供暱稱、IP、Port
+    localhost = '127.0.0.1'
     serverName = input('please enter your name: ')
     serverPort = input('please enter your port number: ')
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind( ('127.0.0.1', int(serverPort)) )
+    sock.bind( (localhost, int(serverPort)) )
     sock.connect( (host, port) )
     print('Connected to registrar', sock.getpeername() )
     sock.sendall(serverName.encode('UTF-8'))
@@ -48,7 +51,7 @@ def server(host, port):
     
     # 開啟listeningSock等待連線
     listeningSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listeningSock.bind(('127.0.0.1', int(serverPort)))
+    listeningSock.bind((localhost, int(serverPort)))
     listeningSock.listen(1)
     sock2, sockname = listeningSock.accept()
     print('Connected to', sockname, 'start chatting!')
@@ -58,22 +61,19 @@ def server(host, port):
     mysend = Mysend(sock2)
     myrec.daemon = True
     mysend.daemon = True
-    try:
-        myrec.start()
-        mysend.start()
-        myrec.join()
-    except KeyboardInterrupt:
-        pass
+    myrec.start()
+    mysend.start()
+    myrec.join()
     
     #server對registrar發出un-register
+    sock2.close()
     sock3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock3.bind( ('127.0.0.1', int(serverPort)) )
     sock3.connect( (host, port) )
-    sock3.sendall(("server").encode('UTF-8'))
+    sock3.sendall(("server "+serverName).encode('UTF-8'))
     sock3.close()
     
     print('press key to exit')
-    sock2.close()
+    
 
 def client(host, port):
     # 連接registrar取得server連線資料表
@@ -100,12 +100,9 @@ def client(host, port):
     mysend = Mysend(sock)
     myrec.daemon = True
     mysend.daemon = True
-    try:
-        myrec.start()
-        mysend.start()
-        myrec.join()
-    except KeyboardInterrupt:
-        pass
+    myrec.start()
+    mysend.start()
+    myrec.join()
     
     print('press key to exit')
     sock.close()
@@ -120,16 +117,16 @@ def registrar(host, port):
         listeningSock.bind((host, port))
         listeningSock.listen(1)
         sock, sockname = listeningSock.accept()
-        identity = sock.recv(BUFSIZE).decode('UTF-8')
-        if identity == 'client':
+        identity = sock.recv(BUFSIZE).decode('UTF-8').split()
+        if identity[0] == 'client':
             sock.sendall(json.dumps(userDict).encode('UTF-8'))
-        elif identity == 'server':
-            username = list(userDict.keys())[list(userDict.values()).index(sockname)]
-            del userDict[username]
-            print('un-register', username, sockname)
+        elif identity[0] == 'server':
+            delip = userDict[identity[1]]
+            del userDict[identity[1]]
+            print('un-register', identity[1], delip)
         else: 
-            userDict[identity] = sockname
-            print('register', identity, sockname)
+            userDict[identity[0]] = sockname
+            print('register', identity[0], sockname)
         
         listeningSock.close()
         sock.close()
