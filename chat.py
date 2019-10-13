@@ -49,7 +49,11 @@ def server(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect( (host, 10529) )
     print('Connected to registrar', sock.getpeername() )
-    sock.sendall(('register '+serverName+' '+localhost+' '+str(port)).encode('UTF-8'))
+    if serverPort == 0:
+        sock.sendall(('register '+serverName+' '+localhost+' randomPort').encode('UTF-8'))
+        serverPort = int(sock.recv(BUFSIZE).decode('UTF-8'))
+    else:
+        sock.sendall(('register '+serverName+' '+localhost+' '+str(port)).encode('UTF-8'))
     sock.close()
     
     # 開啟listeningSock等待連線
@@ -95,7 +99,7 @@ def client(host, port):
     
     # 輸入連線對象，並創造sock連線至server
     serverNum = int(input('choose one of the numbers: '))
-    print(userList)
+    #print(userList)
     serverIp = userList[serverNum-1][1][0]
     serverPort = userList[serverNum-1][1][1]
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -135,9 +139,14 @@ def registrar(host, port):
             del userDict[identity[1]]
             print('un-register', identity[1], delip)
         else: 
-            print(sockname)
-            print(type(sockname))
-            userDict[identity[1]] = (identity[2], int(identity[3]))
+            #print(sockname)
+            #print(type(sockname))
+            if identity[3] == 'randomPort':
+                userDict[identity[1]] = sockname
+                print(sockname, sockname[1])
+                sock.sendall(str(sockname[1]).encode('UTF-8'))
+            else:
+                userDict[identity[1]] = (identity[2], int(identity[3]))
             print('register', identity[1], userDict[identity[1]])
         
         listeningSock.close()
